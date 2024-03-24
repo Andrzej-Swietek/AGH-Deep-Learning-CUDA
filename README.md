@@ -15,9 +15,9 @@
 | Lab 09 |   | [link]() |
 | Lab 10 |   | [link]() |
 
+
 ## Lectures
 
-## Laboratories
 | Lecture    |  Topic   |  Link    |
 |:------:|:--------:|:--------:|
 | Lecture 01 | Introduction | [link](https://github.com/Andrzej-Swietek/AGH-Deep-Learning-CUDA/blob/main/lectures/dlwcu_24s.1.pdf)  |
