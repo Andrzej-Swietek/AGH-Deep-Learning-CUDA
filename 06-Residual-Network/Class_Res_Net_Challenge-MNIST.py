@@ -9,6 +9,8 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 
+torch.autograd.set_detect_anomaly(True)
+
 # Parse input arguments, a bit retro but sturdy
 parser = argparse.ArgumentParser(description='Fashion MNIST Example',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -29,16 +31,11 @@ args = parser.parse_args()
 class cbrblock(nn.Module):
     def __init__(self, input_channels, output_channels):
         super(cbrblock, self).__init__()
-        self.stride = 1
         self.cbr = nn.Sequential(
-          nn.Conv2d(in_channels=input_channels, out_channels=output_channels, kernel_size=3, stride=self.stride, padding=1, bias=False),
-          nn.BatchNorm2d(output_channels),
-          nn.ReLU(inplace=True),
-          # nn.Conv2d(in_channels=output_channels, out_channels=output_channels, kernel_size=3, stride=1, padding=1, bias=False),
-          # nn.BatchNorm2d(output_channels),
-          # nn.ReLU(inplace=True),
+            nn.Conv2d(input_channels, output_channels, kernel_size=3, stride=1, padding='same', bias=False),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm2d(output_channels)
         )
-
     def forward(self, x):
         out = self.cbr(x)
         return out
@@ -48,26 +45,24 @@ class conv_block(nn.Module):
     def __init__(self, input_channels, output_channels, scale_input):
         super(conv_block, self).__init__()
         self.scale_input = scale_input
+
         if self.scale_input:
-            self.scale = nn.Conv2d(input_channels, output_channels, kernel_size=1, stride=(1,1),
-                               padding='same')
-        self.layer1 = cbrblock(input_channels, output_channels)
+            self.scale = nn.Conv2d(input_channels, output_channels, kernel_size=1, stride=(1,1), padding='same')
+        
+        self.layer1 = cbrblock(input_channels, output_channels)  
         self.dropout = nn.Dropout(p=0.01)
-        self.layer2 = cbrblock(output_channels, output_channels)
-        
+        self.layer2 = cbrblock(output_channels, output_channels) 
+
+
     def forward(self, x):
-        if self.scale_input:
-          out_oryginal = self.scale(x)
-        else:
-          out_oryginal = x
-        
         out = self.layer1(x)
-        out = self.dropout(x)
+        out = self.dropout(out)
         out = self.layer2(out)
 
-        # shortcut
-        out += out_oryginal
+        if self.scale_input:
+            x = self.scale(x)
 
+        out += x 
         return out
 
 # Overall network - READ IT, STUDY IT, TAKE YOUR TIME HERE!!
@@ -198,7 +193,7 @@ if __name__ == '__main__':
     val_accuracy = []
     
     # Make a change 4: initialize the variable total_time with a value of 0.
-    total_time = -99
+    total_time = 0
     
     for epoch in range(args.epochs):
         
@@ -208,6 +203,7 @@ if __name__ == '__main__':
         train(model, optimizer, train_loader, loss_fn, device)
 
         epoch_time = time.time() - t0
+        total_time += epoch_time
         # You need to add code here: Compute total training time. Outside of the epoch loop, initialize the 
         # variable total_time with a value of 0. After each training epoch, increase the value 
         # of total_time by epoch_time. Append the cumulative training time after each epoch
@@ -222,7 +218,7 @@ if __name__ == '__main__':
         # provided for the number of samples in a batch. epoch_time is the time taken to complete
         # one training epoch. 
         # Include the image throughput in the print statement below. 
-        images_per_sec = -99
+        images_per_sec = len(train_loader) * args.batch_size / epoch_time
         
         v_accuracy, v_loss = test(model, test_loader, loss_fn, device)
         
@@ -234,4 +230,8 @@ if __name__ == '__main__':
         # to assess if the number of epochs determined by "patience" exceeds a certain "target" accuracy.
         # When the stopping criteria is met, use the following print statement
         # print info about reaching the early stopping with the epoch number, and break the epoch loop. 
+        target_accuracy_indexes = list([i for i, e in enumerate(val_accuracy) if e > args.target_accuracy])
+        if len(target_accuracy_indexes) > 0 and target_accuracy_indexes[0] + args.patience <= epoch:
+            print(f"Early stopping on epoch {epoch+1}!")
+            break
         
